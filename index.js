@@ -2,22 +2,14 @@ const express = require('express');
 const line = require('@line/bot-sdk');
 const fs = require('fs');
 
-// 讀取 drinks.json 的飲料清單
-const drinks = JSON.parse(fs.readFileSync('./drinks.json', 'utf8'));
-
-// LINE Channel 設定（從環境變數抓取）
 const config = {
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
-  channelSecret: process.env.CHANNEL_SECRET,
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+  channelSecret: process.env.LINE_CHANNEL_SECRET,
 };
 
-const client = new line.Client(config);
 const app = express();
-
-// 設定 webhook 路由
 app.post('/callback', line.middleware(config), (req, res) => {
-  Promise
-    .all(req.body.events.map(handleEvent))
+  Promise.all(req.body.events.map(handleEvent))
     .then((result) => res.json(result))
     .catch((err) => {
       console.error(err);
@@ -25,24 +17,29 @@ app.post('/callback', line.middleware(config), (req, res) => {
     });
 });
 
-// 處理傳來的訊息事件
-function handleEvent(event) {
-  if (event.type !== 'message' || event.message.type !== 'text') {
-    return Promise.resolve(null);
-  }
+const client = new line.Client(config);
 
-  // 隨機從清單中選出一杯飲料
-  const randomDrink = drinks[Math.floor(Math.random() * drinks.length)];
-  const replyText = `推薦給你一杯：${randomDrink.name}（${randomDrink.category}）🍹`;
+// 讀取 drinks.json
+const drinks = JSON.parse(fs.readFileSync('drinks.json', 'utf8'));
 
-  return client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: replyText,
-  });
+function getRandomDrink() {
+  const allDrinks = [...drinks.純茶, ...drinks.奶茶, ...drinks.水果茶, ...drinks.其他];
+  const randomIndex = Math.floor(Math.random() * allDrinks.length);
+  return allDrinks[randomIndex];
 }
 
-// 啟動伺服器
+function handleEvent(event) {
+  if (event.type === 'message' && event.message.type === 'text') {
+    const replyText = getRandomDrink();
+    return client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: `推薦你喝：${replyText}`,
+    });
+  }
+  return Promise.resolve(null);
+}
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
-  console.log(`伺服器已啟動，監聽 port ${port}`);
+  console.log(`Listening on port ${port}`);
 });
